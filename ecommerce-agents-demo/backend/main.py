@@ -84,10 +84,33 @@ def marketing(req: MarketingRequest):
     )
 
 
+class CreateOrderRequest(BaseModel):
+    order_id: str
+    customer: str
+    item: str
+    status: str = "processing"
+    eta_days: int = 5
+
+
 @app.get("/orders/{order_id}")
 def order_status(order_id: str):
     from tools import get_order_status
     return get_order_status(order_id)
+
+
+@app.post("/orders")
+def create_order(req: CreateOrderRequest):
+    order = {
+        "order_id": req.order_id.upper(),
+        "customer": req.customer,
+        "item": req.item,
+        "status": req.status,
+        "eta_days": req.eta_days,
+    }
+    # Avoid duplicate order IDs
+    if not any(o["order_id"] == order["order_id"] for o in ORDERS):
+        ORDERS.append(order)
+    return {"status": "created", "order": order}
 
 
 @app.post("/simulate/inventory-check")

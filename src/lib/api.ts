@@ -62,6 +62,25 @@ export async function getOrderStatus(orderId: string): Promise<OrderStatusRespon
   return res.json();
 }
 
+export async function createOrder(data: {
+  order_id: string;
+  customer: string;
+  item: string;
+  status?: string;
+  eta_days?: number;
+}): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** --- 4. Inventory / ops agent ---------------------------------------- */
 
 export async function runInventoryCheck(): Promise<InventoryCheckResponse> {

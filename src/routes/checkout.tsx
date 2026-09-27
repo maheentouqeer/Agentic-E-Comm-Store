@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { formatPrice } from "@/data/products";
 import { useCart } from "@/lib/cart";
+import { createOrder } from "@/lib/api";
 
 export const Route = createFileRoute("/checkout")({
   head: () => ({
@@ -50,8 +51,17 @@ function Checkout() {
 
   const placeOrder = async () => {
     setPlacing(true);
-    await new Promise((r) => setTimeout(r, 900));
     const id = `ORD-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const itemsText = lines.map((l) => `${l.product.name} x${l.qty}`).join(", ");
+    await createOrder({
+      order_id: id,
+      customer: form.name || "Guest Customer",
+      item: itemsText || "TechHub Order",
+      status: "processing",
+      eta_days: destination === "international" ? 7 : destination === "regional" ? 4 : 2,
+    });
+
     setOrderId(id);
     clear();
     setPlacing(false);

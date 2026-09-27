@@ -14,10 +14,10 @@ import { Slider } from "@/components/ui/slider";
 import { categoryLabels, formatPrice, products, useCaseTags } from "@/data/products";
 
 interface ProductSearch {
-  category?: string;
-  maxPrice?: number;
-  useCase?: string;
-  sort?: "price-asc" | "price-desc";
+  category?: string | undefined;
+  maxPrice?: number | undefined;
+  useCase?: string | undefined;
+  sort?: "price-asc" | "price-desc" | undefined;
 }
 
 export const Route = createFileRoute("/products/")({

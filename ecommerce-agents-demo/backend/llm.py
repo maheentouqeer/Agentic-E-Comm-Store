@@ -14,6 +14,10 @@ crashing. This means:
 """
 
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 if API_KEY:

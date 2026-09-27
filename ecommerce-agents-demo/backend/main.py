@@ -15,9 +15,11 @@ here unless you want server-side STT/TTS (see README for that option).
 Run locally:
     uvicorn main:app --reload --port 8000
 """
-
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()  # must run before importing llm, so GEMINI_API_KEY is set in time
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+  # must run before importing llm, so GEMINI_API_KEY is set in time
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

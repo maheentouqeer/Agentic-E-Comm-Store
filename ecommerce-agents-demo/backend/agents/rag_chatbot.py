@@ -27,6 +27,28 @@ from llm import generate, generate_json
 from retrieval import retrieve
 from tools import TOOL_SCHEMAS, TOOL_FUNCTIONS
 
+import re
+
+_PRICE_RE = re.compile(r"\$?\s?(\d{2,6})")
+_BUDGET_SIGNAL_RE = re.compile(r"under|below|less than|cheaper than|budget|up to|max(?:imum)?", re.I)
+_USE_CASE_TERMS = ["video editing", "3d rendering", "gaming", "creative", "office", "everyday", "student", "travel"]
+_CATEGORY_TERMS = {"laptop": "laptop", "notebook": "laptop", "monitor": "monitor",
+                    "screen": "monitor", "keyboard": "accessory", "mouse": "accessory", "accessory": "accessory"}
+
+def _extract_budget(message: str):
+    if _BUDGET_SIGNAL_RE.search(message):
+        m = _PRICE_RE.search(message)
+        if m:
+            return float(m.group(1))
+    return None
+
+def _extract_use_case(message: str):
+    msg = message.lower()
+    return next((t for t in _USE_CASE_TERMS if t in msg), None)
+
+def _extract_category(message: str):
+    msg = message.lower()
+    return next((cat for kw, cat in _CATEGORY_TERMS.items() if kw in msg), None)
 
 def _decide(message: str, history_snippet: str) -> dict:
     schema_text = json.dumps(TOOL_SCHEMAS, indent=2)
@@ -101,20 +123,29 @@ def handle(message: str, history: list | None = None) -> dict:
     tool_name = decision.get("tool")
     if isinstance(tool_name, str) and tool_name.strip().lower() in ("null", "none", ""):
         tool_name = None
+    args = decision.get("args") if isinstance(decision.get("args"), dict) else {}
+
+    # An over-budget recommendation breaks customer trust — don't rely
+    # solely on the LLM's tool-selection reliability for it. If a budget is
+    # stated, force search_products with it, even overriding a tool the
+    # LLM chose if it missed or mis-extracted the number.
+    forced_budget = _extract_budget(message)
+    if forced_budget is not None:
+        tool_name = "search_products"
+        args = {
+            "budget_max": forced_budget,
+            "use_case": args.get("use_case") or _extract_use_case(message),
+            "category": args.get("category") or _extract_category(message),
+        }
 
     tool_result = None
-
-    # 3. Act, if a valid tool was chosen.
     if tool_name in TOOL_FUNCTIONS:
-        args = decision.get("args")
-        if not isinstance(args, dict):
-            args = {}
         try:
             tool_result = TOOL_FUNCTIONS[tool_name](**args)
         except TypeError as e:
             tool_result = {"error": f"Tool called with invalid arguments: {e}"}
     elif tool_name:
-        tool_name = None  # model hallucinated a tool name that doesn't exist — ignore it, don't crash
+        tool_name = None
 
     # 4. Generate the final answer from context + (optional) tool result.
     tool_snippet = f"\nTool result ({tool_name}): {tool_result}" if tool_result else ""

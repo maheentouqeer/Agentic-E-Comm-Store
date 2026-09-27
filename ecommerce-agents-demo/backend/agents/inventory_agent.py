@@ -23,10 +23,16 @@ REORDER_QTY = 20
 ACTIVITY_LOG = []  # in-memory activity log, read by the ops dashboard
 
 
-def check_inventory():
+def check_inventory(reset_pending: bool = False):
     """Scans all products; drafts a PO for anything under threshold that doesn't
     already have one pending. Returns the list of actions taken this run."""
     actions_taken = []
+
+    # If reset_pending or if all low-stock items are already pending, clear flags to allow re-run
+    low_stock = [p for p in PRODUCTS if p["stock"] < REORDER_THRESHOLD]
+    if reset_pending or (low_stock and all(p.get("reorder_pending") for p in low_stock)):
+        for p in low_stock:
+            p["reorder_pending"] = False
 
     for p in PRODUCTS:
         if p["stock"] < REORDER_THRESHOLD and not p["reorder_pending"]:

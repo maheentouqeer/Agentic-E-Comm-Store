@@ -35,6 +35,36 @@ _USE_CASE_TERMS = ["video editing", "3d rendering", "gaming", "creative", "offic
 _CATEGORY_TERMS = {"laptop": "laptop", "notebook": "laptop", "monitor": "monitor",
                     "screen": "monitor", "keyboard": "accessory", "mouse": "accessory", "accessory": "accessory"}
 
+_ORDER_ID_RE = re.compile(r"\b(ORD-\d{4})\b", re.I)
+_SKU_RE = re.compile(r"\b(LT-\d{3})\b", re.I)
+_QTY_RE = re.compile(r"(\d{1,4})\s*(?:units|pieces|pcs|laptops)?", re.I)
+_DEST_RE = re.compile(r"\b(international|domestic|local|express|shipping)\b", re.I)
+_QUOTE_SIGNAL_RE = re.compile(r"quote|bulk|wholesale|price for|cost for", re.I)
+_INVENTORY_SIGNAL_RE = re.compile(r"stock|inventory|how many|units left|available|units of", re.I)
+
+def _extract_order_id(message: str):
+    m = _ORDER_ID_RE.search(message)
+    return m.group(1).upper() if m else None
+
+def _extract_sku(message: str):
+    m = _SKU_RE.search(message)
+    return m.group(1).upper() if m else None
+
+def _extract_quantity(message: str):
+    m = _QTY_RE.search(message)
+    if m:
+        try:
+            val = int(m.group(1))
+            if val > 0:
+                return val
+        except ValueError:
+            pass
+    return 10
+
+def _extract_destination(message: str):
+    m = _DEST_RE.search(message)
+    return m.group(1).lower() if m else "domestic"
+
 def _extract_budget(message: str):
     if _BUDGET_SIGNAL_RE.search(message):
         m = _PRICE_RE.search(message)
@@ -125,12 +155,26 @@ def handle(message: str, history: list | None = None) -> dict:
         tool_name = None
     args = decision.get("args") if isinstance(decision.get("args"), dict) else {}
 
-    # An over-budget recommendation breaks customer trust — don't rely
-    # solely on the LLM's tool-selection reliability for it. If a budget is
-    # stated, force search_products with it, even overriding a tool the
-    # LLM chose if it missed or mis-extracted the number.
+    # Deterministic Safety Net: Don't rely solely on LLM JSON tool-selection
+    # when key intent signals (order IDs, quotes, inventory, budget max) are present.
+    order_id = _extract_order_id(message)
     forced_budget = _extract_budget(message)
-    if forced_budget is not None:
+    sku = _extract_sku(message)
+
+    if order_id:
+        tool_name = "get_order_status"
+        args = {"order_id": order_id}
+    elif _QUOTE_SIGNAL_RE.search(message) and (sku or "units" in message.lower() or "quote" in message.lower()):
+        tool_name = "calculate_quote"
+        args = {
+            "product_id": sku or args.get("product_id") or "LT-002",
+            "quantity": _extract_quantity(message) or args.get("quantity") or 30,
+            "destination": _extract_destination(message) or args.get("destination") or "domestic",
+        }
+    elif _INVENTORY_SIGNAL_RE.search(message) and sku:
+        tool_name = "check_inventory_status"
+        args = {"product_id": sku}
+    elif forced_budget is not None:
         tool_name = "search_products"
         args = {
             "budget_max": forced_budget,

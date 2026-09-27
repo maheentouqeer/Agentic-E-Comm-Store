@@ -1,4 +1,4 @@
-# Remix of Pixel Perfect Replica
+# Agentic E-commerce Store 
 
 Implement exactly the screenshot and nothing else
 
